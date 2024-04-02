@@ -1,0 +1,5 @@
+# Add source files for the configuration
+add_library(configuration OBJECT config.h)
+
+# Set include directories for the target
+target_include_directories(configuration PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

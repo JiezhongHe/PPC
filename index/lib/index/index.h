@@ -1,6 +1,7 @@
 #pragma once
 #include "../graph/graph.h"
 #include "../utility/embedding.h"
+#include "../utility/utils.h"
 #include "feature_counter.h"
 #include "cycle_counting.h"
 #include "path_counting.h"
@@ -21,6 +22,7 @@ void common_edge_neighbor_multi_threads(Graph* graph, int thread_num);
 class Index_constructer{
 public:
     feature_counter* counter;
+    double build_time;
 
     Index_constructer();
     Index_constructer(feature_counter* counter_);

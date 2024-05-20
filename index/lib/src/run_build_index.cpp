@@ -342,6 +342,20 @@ bool file_exists(string file){
     return fin.good();
 }
 
+void* thread_multi_graph(void* args){
+    tuple<Graph**, Tensor**, int, Index_constructer*, int> input = *((tuple<Graph**, Tensor**, int, Index_constructer*, int>*)args);
+    Graph** data_graphs = std::get<0>(input);
+    Tensor** result = std::get<1>(input);
+    int data_count = std::get<2>(input);
+    Index_constructer* index = std::get<3>(input);
+    int level = std::get<4>(input);
+    for(int i=0;i<data_count;++i){
+        result[i] = index->count_features(*(data_graphs[i]), 1, level);
+    }
+    return NULL;
+}
+
+
 int main(int argc, char** argv){
     parse_args(argc, argv);
     print_args();
@@ -355,6 +369,7 @@ int main(int argc, char** argv){
     // get the largest label_id
     parsed_input_para.max_label = 0;
     for(auto& data_graph : data_graphs){
+        
         for(Vertex v=0;v<data_graph.label_map.size();++v){
             if(data_graph.label_map[v] > parsed_input_para.max_label){
                 parsed_input_para.max_label = data_graph.label_map[v];
@@ -369,6 +384,8 @@ int main(int argc, char** argv){
     vector<string> edge_anchored_samples = GetFiles(parsed_input_para.sample_file_e, string(".gr"));
     struct timeval start_t, end_t;
 
+    // int upper_limit = 128;
+    
     if(!parsed_input_para.PV_data_index.empty()){
         cout<<"start generating features for PPC-PV"<<endl;
         if(file_exists(parsed_input_para.PV_data_index)){
@@ -384,7 +401,8 @@ int main(int argc, char** argv){
             cout<<"start building PPC-PV"<<endl;
             // load features
             gettimeofday(&start_t, NULL);
-            vector<vector<Label>> features = load_label_path(parsed_input_para.PV_feature);
+            vector<vector<Label>> features_tmp = load_label_path(parsed_input_para.PV_feature);
+            vector<vector<Label>> features(&(features_tmp[0]), &(features_tmp[0]));
             Path_counter counter(parsed_input_para.enable_residual, features);
             Index_constructer index(&counter);
             for(auto& data_graph : data_graphs){
@@ -393,10 +411,9 @@ int main(int argc, char** argv){
                 }else{
                     index.construct_index_in_batch(data_graph, parsed_input_para.PV_data_index, parsed_input_para.batch_size, parsed_input_para.thread_count, 0);
                 }
+                building_time[0] += index.build_time;
             }
-            gettimeofday(&end_t, NULL);
-            cout<<"finish building PPC-PV:"<<get_time(start_t, end_t)<<endl;
-            building_time[0] = get_time(start_t, end_t);
+            cout<<"finish building PPC-PV:"<<building_time[0]<<endl;
         }
     }
 
@@ -415,7 +432,8 @@ int main(int argc, char** argv){
             cout<<"start building PPC-PE"<<endl;
             // load features
             gettimeofday(&start_t, NULL);
-            vector<vector<Label>> features = load_label_path(parsed_input_para.PE_feature);
+            vector<vector<Label>> features_tmp = load_label_path(parsed_input_para.PE_feature);
+            vector<vector<Label>> features(&(features_tmp[0]), &(features_tmp[0]));
             Path_counter counter(parsed_input_para.enable_residual, features);
             Index_constructer index(&counter);
             for(auto& data_graph : data_graphs){
@@ -424,10 +442,10 @@ int main(int argc, char** argv){
                 }else{
                     index.construct_index_in_batch(data_graph, parsed_input_para.PE_data_index, parsed_input_para.batch_size, parsed_input_para.thread_count, 1);
                 }
+                building_time[1] += index.build_time;
             }
             gettimeofday(&end_t, NULL);
-            cout<<"finish building PPC-PE:"<<get_time(start_t, end_t)<<endl;
-            building_time[1] = get_time(start_t, end_t);
+            cout<<"finish building PPC-PE:"<<building_time[1]<<endl;
         }
     }
 
@@ -446,7 +464,8 @@ int main(int argc, char** argv){
             cout<<"start building PPC-CV"<<endl;
             // load features
             gettimeofday(&start_t, NULL);
-            vector<vector<Label>> features = load_label_path(parsed_input_para.CV_feature);
+            vector<vector<Label>> features_tmp = load_label_path(parsed_input_para.CV_feature);
+            vector<vector<Label>> features(&(features_tmp[0]), &(features_tmp[0]));
             Cycle_counter counter(parsed_input_para.enable_residual, features);
             Index_constructer index(&counter);
             for(auto& data_graph : data_graphs){
@@ -455,10 +474,10 @@ int main(int argc, char** argv){
                 }else{
                     index.construct_index_in_batch(data_graph, parsed_input_para.CV_data_index, parsed_input_para.batch_size, parsed_input_para.thread_count, 0);
                 }
+                building_time[2] += index.build_time;
             }
             gettimeofday(&end_t, NULL);
-            cout<<"finish building PPC-CV:"<<get_time(start_t, end_t)<<endl;
-            building_time[2] = get_time(start_t, end_t);
+            cout<<"finish building PPC-CV:"<<building_time[2]<<endl;
         }
     }
 
@@ -477,7 +496,8 @@ int main(int argc, char** argv){
             cout<<"start building PPC-CE"<<endl;
             // load features
             gettimeofday(&start_t, NULL);
-            vector<vector<Label>> features = load_label_path(parsed_input_para.CE_feature);
+            vector<vector<Label>> features_tmp = load_label_path(parsed_input_para.CE_feature);
+            vector<vector<Label>> features(&(features_tmp[0]), &(features_tmp[0]));
             Cycle_counter counter(parsed_input_para.enable_residual, features);
             Index_constructer index(&counter);
             for(auto& data_graph : data_graphs){
@@ -486,10 +506,11 @@ int main(int argc, char** argv){
                 }else{
                     index.construct_index_in_batch(data_graph, parsed_input_para.CE_data_index, parsed_input_para.batch_size, parsed_input_para.thread_count, 1);
                 }
+                building_time[3] += index.build_time;
             }
             gettimeofday(&end_t, NULL);
-            cout<<"finish building PPC-CE:"<<get_time(start_t, end_t)<<endl;
-            building_time[3] = get_time(start_t, end_t);
+            cout<<"finish building PPC-CE:"<<building_time[3]<<endl;
+            
         }
     }
     

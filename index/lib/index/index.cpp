@@ -164,22 +164,23 @@ Index_constructer::Index_constructer(feature_counter* counter_){
 }
 
 void Index_constructer::construct_index_single_batch(Graph& graph, string index_file_name, int thread_num, int level){
+    build_time = 0;
     Tensor* result = count_features(graph, thread_num, level);
     Index_manager manager(index_file_name);
-#ifdef ENABLE_TIME_INFO
+    
     struct timeval start_t, end_t;
     gettimeofday(&start_t, NULL);
-#endif
+    
     manager.dump_tensor(result);
-#ifdef ENABLE_TIME_INFO
+    
     gettimeofday(&end_t, NULL);
-    cout<<"dump index:"<<get_time(start_t, end_t)<<endl;
-#endif
+    
     delete result;
 }
 
 // note that residual mechanism is not supported
 void Index_constructer::construct_index_in_batch(Graph& graph, string index_file_name, int max_feature_size_per_batch, int thread_num, int level){
+    build_time = 0;
     bool enable_residual = counter->get_residual();
     int split_num = 0;
     int feature_offset = 0;
@@ -340,21 +341,14 @@ Tensor* Index_constructer::count_features(Graph& graph, int thread_num, int leve
 }
 
 vector<Tensor*> Index_constructer::count_with_multi_thread(Graph& graph, int thread_num, int level){
-#ifdef ENABLE_TIME_INFO
+
     struct timeval start_t, end_t;
     gettimeofday(&start_t, NULL);
-#endif
+
     vector<Tensor*> final_results;
     if(thread_num <= 1){
-#ifdef ENABLE_TIME_INFO
         gettimeofday(&start_t, NULL);
-#endif
         graph.construct_edge_common_neighbor();
-#ifdef ENABLE_TIME_INFO
-        gettimeofday(&end_t, NULL);
-        cout<<"common neighbor single thread:"<<get_time(start_t, end_t)<<endl;
-        gettimeofday(&start_t, NULL);
-#endif 
         Tensor** tmp_result;
         int tmp_result_size;
         if(level == 1){
@@ -362,25 +356,24 @@ vector<Tensor*> Index_constructer::count_with_multi_thread(Graph& graph, int thr
         }else{
             counter->count_for_vertices(graph, tmp_result, tmp_result_size);
         }
-#ifdef ENABLE_TIME_INFO
         gettimeofday(&end_t, NULL);
-        cout<<"frequency computation: "<<get_time(start_t, end_t)<<endl;
-#endif
+        build_time += get_time(start_t, end_t);
+
         final_results.resize(tmp_result_size);
         for(int i=0; i<tmp_result_size; ++i){
             final_results[i] = tmp_result[i];
         }
     }else{
-#ifdef ENABLE_TIME_INFO
+// #ifdef ENABLE_TIME_INFO
+        
+// #endif
         gettimeofday(&start_t, NULL);
-#endif
         vector<vector<Label>> label_paths_split = counter->get_features();
         common_edge_neighbor_multi_threads(&graph, thread_num);
-#ifdef ENABLE_TIME_INFO
         gettimeofday(&end_t, NULL);
-        cout<<"common neighbor multithread:"<<get_time(start_t, end_t)<<" thread num:"<<thread_num<<endl;
-        gettimeofday(&start_t, NULL);
-#endif
+        build_time += get_time(start_t, end_t);
+
+
         // split the paths
         vector<vector<vector<Label>>> label_paths_for_threads;
         thread_num = (thread_num>label_paths_split.size()) ? label_paths_split.size() : thread_num;
@@ -422,6 +415,7 @@ vector<Tensor*> Index_constructer::count_with_multi_thread(Graph& graph, int thr
         }
         pthread_t* threads = new pthread_t [thread_num];
         // pthread_barrier_init(&barrier, NULL, thread_num + 1);
+        gettimeofday(&start_t, NULL);
         for(int i=0; i<thread_num; ++i){
             int res = pthread_create(&(threads[i]), NULL, thread_count, (void*)&(input_parameters[i]));
             if(res != 0){
@@ -434,6 +428,9 @@ vector<Tensor*> Index_constructer::count_with_multi_thread(Graph& graph, int thr
             void* ret;
             int res = pthread_join(threads[i], &ret);
         }
+        gettimeofday(&end_t, NULL);
+        build_time += get_time(start_t, end_t);
+
         // merge the result and release the results
         for(int i=0;i<results_size[0];++i){
             vector<Tensor*> vec;
@@ -448,10 +445,7 @@ vector<Tensor*> Index_constructer::count_with_multi_thread(Graph& graph, int thr
             }
             delete [] t;
         }
-#ifdef ENABLE_TIME_INFO
-        gettimeofday(&end_t, NULL);
-        cout<<"frequency computation:"<<get_time(start_t, end_t)<<endl;
-#endif
+
         delete threads;
         for(auto c:counter_thread){
             delete c;
